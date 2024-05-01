@@ -1,105 +1,155 @@
 const BAUD_RATE = 9600; // This should match the baud rate in your Arduino sketch
-const barWidth = 5;
 
-let port, connectBtn, barX; // Declare global variables
-
-// Sprite variables
-let spriteY, spriteVY, spriteSize;
+let port, connectBtn;
+let block, obstacles = [], gameOver = false, score = 0;
+let jumpThreshold = -5; // Set a threshold for jumping based on sensor difference
 
 function setup() {
-  setupSerial(); // Run our serial setup function (below)
+    setupSerial(); // Setup serial connection
 
-  createCanvas(windowWidth, windowHeight); // Create a canvas that is the size of our browser window
-  background("gray"); // Set the background to gray initially
-
-  barX = 0; // Initialize the bar's x position to 0 (left side of screen)
-  spriteY = windowHeight - 50; // Initial position of the sprite
-  spriteVY = 0; // Initial vertical velocity of the sprite
-  spriteSize = 20; // Size of the sprite
-  noStroke(); // Turn off stroke
+    createCanvas(windowWidth, windowHeight);
+    block = new Block();
+    obstacles.push(new Obstacle());
 }
 
 function draw() {
-  const portIsOpen = checkPort(); // Check whether the port is open (see checkPort function below)
-  if (!portIsOpen) return; // If the port is not open, exit the draw loop
+    if (!checkPort()) return; // Check if the port is open and manage connection
 
-  let str = port.readUntil("\n"); // Read from the port until the newline
-  if (str.length == 0) return; // If we didn't read anything, return
+    background(220);
 
-  // trim the whitespace (the newline) and convert the string to a number
-  const reading = Number(str.trim());
+    let str = port.readUntil("\n"); // Read serial data
+    if (str.length > 0) {
+        const sensorValue = Number(str.trim()); // Convert to number
+        if (sensorValue < jumpThreshold) {
+            block.jump(abs(sensorValue)); // Use the magnitude of sensor value as the jump force
+        }
+    }
 
-  // Map the reading to the jump height
-  const jumpHeight = map(reading, 0, 1023, 10, 200); // Adjust these values to change the jump height range
+    block.show();
+    block.update();
 
-  // Full-height purple bar to erase previous bar
-  fill("purple");
-  rect(barX * barWidth, 0, barWidth, windowHeight);
+    obstacles.forEach((obstacle, index) => {
+        obstacle.show();
+        obstacle.update();
 
-  // Draw the sprite
-  fill("blue");
-  rect(windowWidth / 2 - spriteSize / 2, spriteY, spriteSize, spriteSize);
+        if (obstacle.hits(block)) {
+            gameOver = true;
+            noLoop();
+        }
 
-  // Update sprite position based on jump height
-  if (spriteY >= windowHeight - spriteSize - jumpHeight && spriteVY >= 0) {
-    spriteVY = -spriteVY; // Make the sprite jump
-  }
+        if (obstacle.offscreen()) {
+            obstacles.splice(index, 1);
+            obstacles.push(new Obstacle());
+            if (!gameOver) score++;
+        }
+    });
 
-  // Apply gravity to the sprite
-  spriteVY += 1; // Increase the velocity to simulate gravity
-  spriteY += spriteVY; // Update the sprite's vertical position
+    if (gameOver) {
+        fill(255, 0, 0);
+        textSize(32);
+        textAlign(CENTER, CENTER);
+        text(`Game Over! Score: ${score}. Click to restart.`, width / 2, height / 2);
+    }
 
-  // Blue tracker line which will get erased on the next loop
-  fill("aqua");
-  rect((barX + 1) * barWidth, 0, barWidth, windowHeight);
-
-  // Increment barX for the next loop
-  barX++;
-  // at the edge of the screen, go back to the beginning:
-  if (barX * barWidth >= windowWidth) {
-    barX = 0;
-  }
+    fill(0);
+    textSize(24);
+    text(`Score: ${score}`, 10, 30);
 }
 
-// Three helper functions for managing the serial connection.
+function mousePressed() {
+    if (gameOver) {
+        gameOver = false;
+        obstacles = [];
+        block = new Block();
+        score = 0;
+        loop();
+    }
+}
 
+class Block {
+    constructor() {
+        this.y = height - 20;
+        this.velocity = 0;
+        this.gravity = 1;
+    }
+
+    show() {
+        fill(255);
+        rect(50, this.y, 50, 50);
+    }
+
+    jump(force) {
+        if (this.y >= height - 50) { // Only jump if on the ground
+            this.velocity -= force; // Apply the jump force
+        }
+    }
+
+    update() {
+        this.velocity += this.gravity;
+        this.y += this.velocity;
+
+        if (this.y > height - 50) {
+            this.y = height - 50;
+            this.velocity = 0;
+        }
+    }
+}
+
+class Obstacle {
+    constructor() {
+        this.x = width;
+        this.y = height - 50;
+        this.width = 20;
+        this.speed = 5;
+    }
+
+    show() {
+        fill(0);
+        rect(this.x, this.y, this.width, 50);
+    }
+
+    update() {
+        this.x -= this.speed;
+    }
+
+    offscreen() {
+        return this.x < -this.width;
+    }
+
+    hits(block) {
+        return block.y + 50 >= this.y && block.x + 50 > this.x && block.x < this.x + this.width;
+    }
+}
+
+// Serial communication functions
 function setupSerial() {
-  port = createSerial();
+    port = createSerial();
 
-  // Check to see if there are any ports we have used previously
-  let usedPorts = usedSerialPorts();
-  if (usedPorts.length > 0) {
-    // If there are ports we've used, open the first one
-    port.open(usedPorts[0], BAUD_RATE);
-  }
+    let usedPorts = usedSerialPorts();
+    if (usedPorts.length > 0) {
+        port.open(usedPorts[0], BAUD_RATE);
+    }
 
-  // create a connect button
-  connectBtn = createButton("Connect to Arduino");
-  connectBtn.position(5, 5); // Position the button in the top left of the screen.
-  connectBtn.mouseClicked(onConnectButtonClicked); // When the button is clicked, run the onConnectButtonClicked function
+    connectBtn = createButton("Connect to Arduino");
+    connectBtn.position(5, 5);
+    connectBtn.mouseClicked(onConnectButtonClicked);
 }
 
 function checkPort() {
-  if (!port.opened()) {
-    // If the port is not open, change button text
-    connectBtn.html("Connect to Arduino");
-    // Set background to gray
-    background("gray");
-    return false;
-  } else {
-    // Otherwise we are connected
-    connectBtn.html("Disconnect");
-    return true;
-  }
+    if (!port.opened()) {
+        connectBtn.html("Connect to Arduino");
+        background("gray");
+        return false;
+    } else {
+        connectBtn.html("Disconnect");
+        return true;
+    }
 }
 
 function onConnectButtonClicked() {
-  // When the connect button is clicked
-  if (!port.opened()) {
-    // If the port is not opened, we open it
-    port.open(BAUD_RATE);
-  } else {
-    // Otherwise, we close it!
-    port.close();
-  }
+    if (!port.opened()) {
+        port.open(BAUD_RATE);
+    } else {
+        port.close();
+    }
 }
