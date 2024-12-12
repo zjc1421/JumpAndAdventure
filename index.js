@@ -1,4 +1,4 @@
-const BAUD_RATE = 9600; // This should match the baud rate in your Arduino sketch
+const BAUD_RATE = 9600;
 
 let port, connectBtn;
 let block, obstacles = [], gameOver = false, score = 0;
@@ -9,7 +9,7 @@ function setup() {
 
     createCanvas(windowWidth, windowHeight);
     block = new Block();
-    obstacles.push(new Obstacle());
+    obstacles.push(new Obstacle(width));
 }
 
 function draw() {
@@ -25,61 +25,69 @@ function draw() {
         }
     }
 
-    block.show();
     block.update();
+    block.show();
 
-    obstacles.forEach((obstacle, index) => {
-        obstacle.show();
-        obstacle.update();
-
-        if (obstacle.hits(block)) {
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].update();
+        obstacles[i].show();
+        
+        if (obstacles[i].hits(block)) {
             gameOver = true;
-            noLoop();
+            noLoop(); // Stop the game loop if collision occurs
         }
 
-        if (obstacle.offscreen()) {
-            obstacles.splice(index, 1);
-            obstacles.push(new Obstacle());
+        if (obstacles[i].offscreen()) {
+            obstacles.splice(i, 1);
+            let newObstacle = new Obstacle(width);
+            obstacles.push(newObstacle); // Add new obstacles at random intervals
             if (!gameOver) score++;
         }
-    });
+    }
 
+    displayScore();
+}
+
+function displayScore() {
+    fill(0);
+    textSize(24);
+    text(`Score: ${score}`, 10, 30);
     if (gameOver) {
         fill(255, 0, 0);
         textSize(32);
         textAlign(CENTER, CENTER);
         text(`Game Over! Score: ${score}. Click to restart.`, width / 2, height / 2);
     }
-
-    fill(0);
-    textSize(24);
-    text(`Score: ${score}`, 10, 30);
 }
 
 function mousePressed() {
     if (gameOver) {
         gameOver = false;
         obstacles = [];
-        block = new Block();
+        obstacles.push(new Obstacle(width));
+        block.reset();
         score = 0;
-        loop();
+        loop(); // Restart the drawing loop
     }
 }
 
 class Block {
     constructor() {
-        this.y = height - 20;
+        this.y = height - 50;
+        this.x = 50;
+        this.width = 50;
+        this.height = 50;
         this.velocity = 0;
-        this.gravity = 1;
+        this.gravity = 2;
     }
 
     show() {
         fill(255);
-        rect(50, this.y, 50, 50);
+        rect(this.x, this.y, this.width, this.height);
     }
 
     jump(force) {
-        if (this.y >= height - 50) { // Only jump if on the ground
+        if (this.y >= height - this.height) { // Only jump if on the ground
             this.velocity -= force; // Apply the jump force
         }
     }
@@ -88,24 +96,30 @@ class Block {
         this.velocity += this.gravity;
         this.y += this.velocity;
 
-        if (this.y > height - 50) {
-            this.y = height - 50;
+        if (this.y > height - this.height) {
+            this.y = height - this.height;
             this.velocity = 0;
         }
+    }
+
+    reset() {
+        this.y = height - 50;
+        this.velocity = 0;
     }
 }
 
 class Obstacle {
-    constructor() {
-        this.x = width;
+    constructor(x) {
+        this.x = x;
         this.y = height - 50;
         this.width = 20;
+        this.height = 50;
         this.speed = 5;
     }
 
     show() {
         fill(0);
-        rect(this.x, this.y, this.width, 50);
+        rect(this.x, this.y, this.width, this.height);
     }
 
     update() {
@@ -117,11 +131,15 @@ class Obstacle {
     }
 
     hits(block) {
-        return block.y + 50 >= this.y && block.x + 50 > this.x && block.x < this.x + this.width;
+        return (
+            block.x < this.x + this.width &&
+            block.x + block.width > this.x &&
+            block.y < this.y + this.height &&
+            block.y + block.height > this.y
+        );
     }
 }
 
-// Serial communication functions
 function setupSerial() {
     port = createSerial();
 
@@ -153,3 +171,6 @@ function onConnectButtonClicked() {
         port.close();
     }
 }
+
+
+
