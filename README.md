@@ -1,6 +1,6 @@
 # Jump & Adventure
 
-![Jump & Adventure](./jump)
+![Jump & Adventure](./jump.webp)
 
 ## Overview
 
