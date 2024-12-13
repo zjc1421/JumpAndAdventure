@@ -37,4 +37,4 @@ We plan to further refine and test the interaction models by:
 - Exploring additional gesture types to enhance gameplay diversity.
 
 ## Acknowledgments
-This project was developed by a dedicated team passionate about combining technology with fun and innovative gaming experiences. Special thanks to the creators of the Google Chrome Dinosaur Game for inspiring this project!
+This project was developed by the Craft^2 team (https://craftsquare.framer.website/) passionate about combining technology with fun and innovative gaming experiences. Special thanks to the creators of the Google Chrome Dinosaur Game for inspiring this project!
